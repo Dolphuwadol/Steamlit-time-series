@@ -1,4 +1,4 @@
-# Name of Streamlit App
+# Time Series App
 
 Description of the app ...
 
