@@ -1,6 +1,6 @@
 # Time Series App
 
-Description of the app ...
+Forecast the stock prices of SET Thailand for the next 6 months using time series forecasting techniques.
 
 ## Demo App
 
