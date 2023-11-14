@@ -32,7 +32,7 @@ selected_stocks = st.selectbox("Select dataset for prediction", stocks)
 def load_data(ticker):
     data = ax.loadHistData_v2 (ticker, START, TODAY )
     if 'Date' in data.columns:
-        data['Date'] = pd.to_datetime(data['Date']).dt.date
+        data['Date'] = pd.to_datetime(data['Date']).data.date
     data.reset_index(inplace=True)
     return(data)
 
@@ -51,14 +51,44 @@ st.write(data.describe())
 def plot_raw_data():
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=data['Date'], y=data['Close'], name='Stock_close'))
-    fig.layout.update(title_text = "Time Series Data", xaxis_rangeslider_visible=True)
+    fig.layout.update(title = "Time Series Data")
+    # Add range slider
+    fig.update_layout(
+        xaxis=dict(
+            rangeselector=dict(
+                buttons=list([
+                    dict(count=1,
+                        label="1m",
+                        step="month",
+                        stepmode="backward"),
+                    dict(count=6,
+                        label="6m",
+                        step="month",
+                        stepmode="backward"),
+                    dict(count=1,
+                        label="YTD",
+                        step="year",
+                        stepmode="todate"),
+                    dict(count=1,
+                        label="1y",
+                        step="year",
+                        stepmode="backward"),
+                    dict(step="all")
+                ])
+            ),
+            rangeslider=dict(
+                visible=True
+            ),
+            type="date"
+        )
+    )
     st.plotly_chart(fig)
 plot_raw_data()
 
 # Technical Indicators
 def tech_indicators():
     st.header('Technical Indicators')
-    option = st.radio('เลือก Technical Indicator ', ['BB', 'MACD', 'RSI', 'SMA', 'EMA'])
+    option = st.radio('Choose Technical Indicator ', ['BB', 'MACD', 'RSI', 'SMA', 'EMA'])
     # Bollinger bands
     bb_indicator = BollingerBands(data.Close)
     bb = data
@@ -74,12 +104,11 @@ def tech_indicators():
     sma = SMAIndicator(data.Close, window=14).sma_indicator()
     # EMA
     ema = EMAIndicator(data.Close).ema_indicator()
-    if option == 'Close':
-        st.write('Close Price')
-        st.line_chart(data.Close)
-    elif option == 'BB':
-        st.write('BollingerBands')
+    
+    if option == 'BB':
+        st.write('BB')
         st.line_chart(bb)
+        
     elif option == 'MACD':
         st.write('Moving Average Convergence Divergence')
         st.line_chart(macd)
@@ -99,7 +128,6 @@ data = data[['Date', 'Close']]
 data.set_index('Date', inplace=True)
 st.subheader('Data ก่อนนำไปใช้กับ ARIMA')
 st.write(data)
-st.write(data.dtypes)
 
  # เช็ค stationaty
 def stationary_test(data):
@@ -138,26 +166,11 @@ st.subheader('ตรวจสอบค่าความคงที่ของ
 stationary_test(data)
 
 
-
-
-# forecat
-def forecast_data(df):
-    st.text('...ค้นหา optimum parameter')
-    optimum_para(df)
-    st.text('Enter the parameter with the lowest RMSE')
-    p = st.number_input('The p term')
-    q = st.number_input('The q term')
-    d = st.number_input('The d term')
-    period = st.number_input('Enter the next period(s) you want to forecast', value=7)
-    button = st.button('Forecast')
-    if button:
-        model_forecast(df, p, q, d, period)
-
 # หา p,q,d ที่ดีที่สุดมีค่า rmse ต่ำที่สุดโดยใช้ grid-search
 def optimum_para(df):
     p_values = [0, 1, 2]
-    d_values = range(0, 3)
-    q_values = range(0, 3)
+    d_values = [0, 1, 2]
+    q_values = [0, 1, 2]
     size = int(len(df) * .7)
     train, test = df[:size], df[size:]
     for p in p_values:
@@ -169,6 +182,21 @@ def optimum_para(df):
                 error = sqrt(mean_squared_error(test, preds))
                 st.text(f'ARIMA {order} RMSE: {error}')
 
+# forecat
+def forecast_data(df):
+    if st.button('Find Optimun Parameter'):
+        st.text('...ค้นหา optimum parameter')
+        optimum_para(df)
+    st.text('Enter the parameter with the lowest RMSE')
+    p = st.number_input('The p term', min_value=0, max_value=2, step= 1)
+    q = st.number_input('The q term', min_value=0, max_value=2, step= 1)
+    d = st.number_input('The d term', min_value=0, max_value=2, step= 1)
+    period = st.number_input('Enter the next period(s) you want to forecast', value=7)
+    button = st.button('Forecast')
+    if button:
+        model_forecast(df, p, q, d, period)
+
+
 def model_forecast(data, p, q, d, period):
     size = int(len(data) * .7)
     train, test = data[:size], data[size:]
@@ -176,7 +204,7 @@ def model_forecast(data, p, q, d, period):
     model_fit = model.fit()
     output = model_fit.predict(start=len(train), end = len(train)+ len(test)-1)
     error = sqrt(mean_squared_error(output, test))
-    st.text(f'MAE using {p,q,d}: {error}')
+    st.text(f'RMSE using {p,q,d}: {error}')
     st.text(f'Forecasting {period} future values')
     model_2 = sm.tsa.arima.ARIMA(data.values, order = (p,q,d)).fit()
     forecast = model_2.predict(start=len(data), end=len(data) + period, typ='levels')
@@ -184,5 +212,5 @@ def model_forecast(data, p, q, d, period):
     for i in forecast:
         st.text(f'Period {day}: {i}')
         day += 1
-
 forecast_data(data)
+
